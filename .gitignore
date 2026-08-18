@@ -1,0 +1,14 @@
+.build/
+artifacts/
+.venv/
+__pycache__/
+*.py[cod]
+*.log
+*.tmp
+*.bak
+*.mph
+*.mph.lock
+test_outputs/
+.env
+env.local
+

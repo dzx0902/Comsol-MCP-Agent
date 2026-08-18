@@ -1,0 +1,12 @@
+# Merge this table into the COMSOL server user's ~/.codex/config.toml.
+# Replace T: if the server uses a different drive. Do not overwrite existing config.
+[mcp_servers.comsol]
+command = "T:\\COMSOL_Multiphysics_MCP\\.venv\\Scripts\\python.exe"
+args = ["-m", "src.server"]
+cwd = "T:\\COMSOL_Multiphysics_MCP"
+startup_timeout_sec = 60
+tool_timeout_sec = 600
+enabled = true
+required = false
+default_tools_approval_mode = "prompt"
+
