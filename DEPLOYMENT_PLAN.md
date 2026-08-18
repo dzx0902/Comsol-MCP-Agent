@@ -1,149 +1,116 @@
-# COMSOL MCP 构建与迁移部署计划
+# COMSOL MCP GitHub 部署计划
 
-## 1. 范围与边界
+## 1. 部署边界
 
-- MCP 项目：非官方 `wjc9011/COMSOL_Multiphysics_MCP`。
-- 传输：先做 Windows 本地 STDIO MCP；不部署网页端或远程 HTTP MCP。
-- 构建机：准备源码快照和离线 wheelhouse，不需要 COMSOL。
-- 目标服务器：必须有可用的 COMSOL 5.x/6.x、本地许可、Java API 及与构建包匹配的 Python 3.10+。
-- 本仓库不修改全局 Python、系统环境变量或已有 Codex 配置，也不删除/重装 COMSOL。
-- 虚拟环境不可搬运。服务器必须从迁移包重新创建 `.venv`。
+- MCP 项目是非官方 `wjc9011/COMSOL_Multiphysics_MCP`。
+- 当前电脑只维护 Git 仓库，不安装或验证 COMSOL。
+- 目标服务器：Windows AMD64、Python 3.13.5、已安装 COMSOL。
+- 首阶段仅使用本地 STDIO MCP，不配置远程 HTTP MCP。
+- 不提交 `.venv`、`.mph` 模型、许可证、API key、日志或个人 Codex 配置。
 
-上游当前固定到 `UPSTREAM_COMMIT`。升级上游必须单独提交，并重新构建、复测迁移包。
-
-## 2. 关键架构决定
+## 2. 仓库结构
 
 ```text
-构建机（无 COMSOL）
-  固定上游 commit -> 构建项目 wheel + 下载依赖 wheels -> SHA-256 清单 -> ZIP
-                                                                  |
-                                                           受控文件传输
-                                                                  v
-COMSOL Windows 服务器
-  校验哈希 -> 检测 COMSOL/Python -> 新建 .venv -> 离线安装 -> STDIO MCP -> Codex
-                                                                  |
-                                                                  v
-                                     创建空模型 -> 参数 -> 保存到 test_outputs
+comsol_mcp/                              # 本部署仓库
+├── vendor/COMSOL_Multiphysics_MCP/      # 固定 commit 的 Git submodule
+├── config/codex.comsol.example.toml
+├── scripts/Test-Environment.ps1
+└── docs/SPP_SIMULATION_PROMPT.md
 ```
 
-MCP 进程和 COMSOL 应部署在同一台 Windows 服务器。Codex CLI/IDE 也在该服务器会话中运行并通过 STDIO 启动 MCP。若 Codex 在另一台电脑，STDIO 配置不会自动跨主机工作，那属于后续远程执行器或 HTTP MCP 阶段。
+上游版本由 Git submodule 和 `UPSTREAM_COMMIT` 双重记录。升级上游时应单独提交，并在服务器重新验证。
 
-## 3. 阶段与验收门
+## 3. 发布到 GitHub
 
-### A. 服务器信息确认（构建前）
-
-收集并记录：
-
-- Windows 版本与 `AMD64/ARM64` 架构；
-- `python --version` 和 `python -c "import platform; print(platform.machine())"`；
-- COMSOL 版本、安装根目录、所需 Wave Optics Module 是否已许可；
-- Codex CLI 版本及其运行账户；
-- 服务器实际工作盘（若无 `T:`，修改安装根目录）。
-
-验收门 A：构建 Python 与服务器 Python 的主/次版本、架构一致。构建机当前 Python 是 3.12.4/Windows，目标信息尚未确认。
-
-### B. 构建机生成迁移包
+在本机为当前仓库配置你自己的 GitHub remote，然后推送：
 
 ```powershell
-.\scripts\Test-Environment.ps1 -Role Build
-.\scripts\New-TransferBundle.ps1 -PythonExe 'C:\Path\To\matching-python.exe'
+git remote add origin <你的GitHub仓库URL>
+git push -u origin main
 ```
 
-脚本会：
+若已有 `origin`，先运行 `git remote -v` 核对，不要重复添加或覆盖。
 
-1. 克隆并 checkout 固定 commit；
-2. 用独立构建虚拟环境运行 `pip wheel`；
-3. 生成上游源码快照、wheelhouse、Python 运行时元数据和 `SHA256SUMS.txt`；
-4. 输出 ZIP 及 ZIP 的 `.sha256` 文件。
-
-验收门 B：脚本退出码为 0；ZIP 和 `.sha256` 同时存在；包内至少有 `comsol_mcp-*.whl`。
-
-### C. 服务器离线安装
-
-先校验传输文件：
+## 4. 服务器首次部署
 
 ```powershell
-Get-FileHash .\comsol-mcp-bundle-*.zip -Algorithm SHA256
-Get-Content .\comsol-mcp-bundle-*.zip.sha256
+git clone --recurse-submodules <你的GitHub仓库URL> T:\comsol_mcp
+cd T:\comsol_mcp
+.\scripts\Test-Environment.ps1 -Role Server -PythonExe python
 ```
 
-解压后执行：
+环境检查必须确认：
+
+- Python 返回 3.13.5、AMD64、64bit；
+- Git 与 Codex 可用；
+- 检测到实际 COMSOL 安装目录；
+- `T:` 盘存在；
+- 所需 Wave Optics Module 许可可用。
+
+然后在服务器本地创建虚拟环境：
 
 ```powershell
-.\scripts\Test-Environment.ps1 -Role Server
-.\scripts\Install-OnComsolServer.ps1 -InstallRoot 'T:\COMSOL_Multiphysics_MCP'
+cd T:\comsol_mcp\vendor\COMSOL_Multiphysics_MCP
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -U pip
+.\.venv\Scripts\python.exe -m pip install -e .
+.\.venv\Scripts\python.exe -m pip check
 ```
 
-安装脚本只接受一个尚不存在的安装目录，创建服务器本地 `.venv`，从 wheelhouse 离线安装，并做不启动 COMSOL 的 Python import 检查。若安装目录已存在，先人工检查和备份，不自动覆盖。
+虚拟环境始终由服务器上的 Python 3.13.5 创建，不通过 Git 同步。
 
-验收门 C：环境检查发现 COMSOL；Python 版本/架构匹配；`import src.server` 成功。
-
-### D. COMSOL 与 MCP 联调
-
-在服务器安装目录中运行：
+## 5. MCP 启动验证
 
 ```powershell
+cd T:\comsol_mcp\vendor\COMSOL_Multiphysics_MCP
 .\.venv\Scripts\python.exe -m src.server
 ```
 
-STDIO 服务正常等待输入可能表现为“没有提示且不退出”，这是正常现象；用 `Ctrl+C` 停止。日志必须写 stderr，不能向 stdout 输出非 MCP 协议文本。
+STDIO 服务启动后等待输入、没有交互提示是正常现象，可用 `Ctrl+C` 停止。若失败，按错误区分依赖、COMSOL 发现、Java API、许可证或服务端代码问题。
 
-通过 MCP 客户端依次调用：
+## 6. Codex 配置
 
-1. `comsol_status`；
-2. `comsol_start`（可显式给出检测到的版本）；
-3. 再次 `comsol_status`。
-
-故障分类：
-
-| 症状 | 最小诊断 | 处理方向 |
-|---|---|---|
-| import/module error | `.venv\Scripts\python -m pip check` | 重新核对 wheelhouse 与 Python ABI，不升级全局环境 |
-| 找不到 COMSOL | `Test-Environment.ps1 -Role Server` | 核实安装根目录与 MPh 发现机制，不猜路径 |
-| JVM/Java class error | 检查 COMSOL 自带 Java、`mph` 诊断输出 | 保持 COMSOL 自带 Java；核对版本兼容性 |
-| license checkout failed | 用同一账户启动 COMSOL 或 `mphserver` | 交由许可证管理员确认产品与并发许可 |
-| MCP 初始化失败 | 手动启动、查看 stderr，运行 `codex mcp get comsol` | 区分 TOML、cwd、Python 与服务端异常 |
-
-验收门 D：`comsol_start` 返回成功和版本信息。
-
-### E. Codex 配置
-
-官方 Codex 支持用户级 `~/.codex/config.toml` 和可信项目内 `.codex/config.toml`，CLI 与 IDE 扩展共享同一主机的 MCP 配置。先备份用户配置：
+先备份服务器用户的配置：
 
 ```powershell
 $config = Join-Path $env:USERPROFILE '.codex\config.toml'
-if (Test-Path -LiteralPath $config) { Copy-Item -LiteralPath $config -Destination "$config.bak" -ErrorAction Stop }
+if (Test-Path -LiteralPath $config) {
+    Copy-Item -LiteralPath $config -Destination "$config.bak" -ErrorAction Stop
+}
 ```
 
-把 [config/codex.comsol.example.toml](config/codex.comsol.example.toml) 中路径改为服务器实际绝对路径后，**合并**到已有配置，不要整文件覆盖。然后：
+把 `config/codex.comsol.example.toml` 中的配置合并到原文件，不要整文件覆盖。验证：
 
 ```powershell
 codex mcp list
 codex mcp get comsol
 ```
 
-在 Codex TUI 中运行 `/mcp`。重启 IDE 扩展后再检查其 MCP 列表。
+随后在 Codex TUI 中运行 `/mcp`；VS Code Codex 扩展重启后应读取同一主机配置。
 
-验收门 E：`comsol` 已启用，命令、cwd 和超时正确，初始化无错误。
+## 7. 最小功能闭环
 
-### F. 最小功能闭环
+在全新的 `T:\comsol_mcp\test_outputs\smoke_<timestamp>` 中执行，禁止覆盖已有 `.mph`：
 
-测试目录仅使用新路径 `T:\COMSOL_Multiphysics_MCP\test_outputs\smoke_<timestamp>`，不得覆盖已有 `.mph`：
-
-1. 列出 MCP 工具；
-2. `comsol_start`；
-3. `model_create` 创建空模型；
-4. `param_set` 设置 `mcp_smoke_length = 1[um]`；
-5. `param_get` 或 `param_list` 回读；
-6. `model_save` 到新建 smoke 目录；
-7. `model_inspect` 回读结构；
+1. 查看 MCP 工具；
+2. 调用 `comsol_status`；
+3. 调用 `comsol_start`；
+4. `model_create` 创建空模型；
+5. `param_set` 设置 `mcp_smoke_length = 1[um]`；
+6. 回读参数；
+7. 保存、重新加载并检查模型；
 8. `comsol_disconnect`。
 
-验收门 F：工具可见、参数回读一致、产生一个新的 `.mph` 文件且能再次加载。保存前应让用户确认最终绝对路径。
+只有工具可见、COMSOL 启动成功、参数可回读且新模型能保存/加载，才算部署完成。
 
-## 4. 完成定义
+## 8. 日常更新
 
-只有 A-F 全部通过，才报告“部署成功”。本机当前只能完成方案、上游固定、环境静态检查和迁移包构建；没有 COMSOL 的情况下，D-F 不能验证。
+```powershell
+cd T:\comsol_mcp
+git pull --ff-only
+git submodule sync --recursive
+git submodule update --init --recursive
+```
 
-最终交付记录应包含：迁移包哈希、上游 commit、Python/COMSOL/Codex 版本、安装路径、配置变更及备份路径、每个验收门证据、最小测试模型路径，以及失败时唯一的下一步诊断命令。
+上游 submodule 更新后，服务器应再次运行 `pip install -e .`、`pip check` 和最小功能闭环。不要在服务器直接修改 submodule 后忘记提交到独立分支或 fork。
 

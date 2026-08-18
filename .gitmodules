@@ -1,0 +1,4 @@
+[submodule "vendor/COMSOL_Multiphysics_MCP"]
+	path = vendor/COMSOL_Multiphysics_MCP
+	url = https://github.com/wjc9011/COMSOL_Multiphysics_MCP.git
+

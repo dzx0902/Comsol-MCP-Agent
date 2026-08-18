@@ -1,5 +1,4 @@
 .build/
-artifacts/
 .venv/
 __pycache__/
 *.py[cod]
@@ -11,4 +10,3 @@ __pycache__/
 test_outputs/
 .env
 env.local
-
