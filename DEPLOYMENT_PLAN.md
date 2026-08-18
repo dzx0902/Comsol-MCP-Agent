@@ -14,8 +14,11 @@
 comsol_mcp/                              # 本部署仓库
 ├── vendor/COMSOL_Multiphysics_MCP/      # 固定 commit 的 Git submodule
 ├── config/codex.comsol.example.toml
+├── config/cline.mcp.example.json
+├── config/librechat.example.yaml
+├── scripts/Setup-OnServer.ps1
 ├── scripts/Test-Environment.ps1
-└── docs/SPP_SIMULATION_PROMPT.md
+└── docs/                                  # 部署、使用、LLM、Web 与仿真指南
 ```
 
 上游版本由 Git submodule 和 `UPSTREAM_COMMIT` 双重记录。升级上游时应单独提交，并在服务器重新验证。
@@ -25,7 +28,7 @@ comsol_mcp/                              # 本部署仓库
 在本机为当前仓库配置你自己的 GitHub remote，然后推送：
 
 ```powershell
-git remote add origin <你的GitHub仓库URL>
+git remote add origin https://github.com/dzx0902/Comsol-MCP-Agent.git
 git push -u origin main
 ```
 
@@ -33,10 +36,13 @@ git push -u origin main
 
 ## 4. 服务器首次部署
 
+完整可复制步骤以 [docs/SERVER_DEPLOYMENT.md](docs/SERVER_DEPLOYMENT.md) 为准；
+下面保留流程摘要。
+
 ```powershell
-git clone --recurse-submodules <你的GitHub仓库URL> T:\comsol_mcp
+git clone --recurse-submodules https://github.com/dzx0902/Comsol-MCP-Agent.git T:\comsol_mcp
 cd T:\comsol_mcp
-.\scripts\Test-Environment.ps1 -Role Server -PythonExe python
+.\scripts\Setup-OnServer.ps1 -PythonExe python -ExpectedPythonVersion 3.13.5
 ```
 
 环境检查必须确认：
@@ -113,4 +119,3 @@ git submodule update --init --recursive
 ```
 
 上游 submodule 更新后，服务器应再次运行 `pip install -e .`、`pip check` 和最小功能闭环。不要在服务器直接修改 submodule 后忘记提交到独立分支或 fork。
-
