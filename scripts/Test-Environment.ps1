@@ -17,7 +17,7 @@ function Invoke-Captured {
     }
 }
 
-$python = Invoke-Captured -FilePath $PythonExe -Arguments @('-c', 'import json,platform,sys; print(json.dumps({"version": list(sys.version_info[:3]), "machine": platform.machine(), "bits": platform.architecture()[0]}))')
+$python = Invoke-Captured -FilePath $PythonExe -Arguments @('-c', 'import platform,sys;print(sys.version.split()[0],platform.machine(),platform.architecture()[0],sep=chr(124))')
 $git = Invoke-Captured -FilePath 'git' -Arguments @('--version')
 $codex = Invoke-Captured -FilePath 'codex' -Arguments @('--version')
 
@@ -45,12 +45,13 @@ $foundComsol = @($comsolRoots | Where-Object { Test-Path -LiteralPath $_ -PathTy
 } | Format-List
 
 if (-not $python.Found -or $python.ExitCode -ne 0) { throw 'Python is unavailable.' }
-$runtime = $python.Output | ConvertFrom-Json
-if ($runtime.version[0] -lt 3 -or ($runtime.version[0] -eq 3 -and $runtime.version[1] -lt 10)) {
-    throw "Python 3.10+ is required; found $($runtime.version -join '.')."
+$runtime = @($python.Output -split '\|')
+if ($runtime.Count -ne 3) { throw "Unexpected Python runtime output: $($python.Output)" }
+$version = @($runtime[0] -split '\.')
+if ($version.Count -lt 2 -or [int]$version[0] -lt 3 -or ([int]$version[0] -eq 3 -and [int]$version[1] -lt 10)) {
+    throw "Python 3.10+ is required; found $($runtime[0])."
 }
 if (-not $git.Found -or $git.ExitCode -ne 0) { throw 'Git is unavailable.' }
 if ($Role -eq 'Server' -and $foundComsol.Count -eq 0) {
     throw 'No COMSOL installation was found in the checked common paths. Verify the actual path; do not guess or modify system variables.'
 }
-
