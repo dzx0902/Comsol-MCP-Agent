@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "comsol": {
+      "command": "T:\\comsol_mcp\\vendor\\COMSOL_Multiphysics_MCP\\.venv\\Scripts\\python.exe",
+      "args": ["-m", "src.server"],
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
