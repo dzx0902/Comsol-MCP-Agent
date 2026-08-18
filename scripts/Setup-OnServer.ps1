@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$PythonExe = 'python',
-    [string]$ExpectedPythonVersion = '3.13.5'
+    [string]$ExpectedPythonVersion = '3.13.5',
+    [string]$ComsolRoot
 )
 
 $ErrorActionPreference = 'Stop'
@@ -28,7 +29,7 @@ if ($runtime.machine -ne 'AMD64' -or $runtime.bits -ne '64bit') {
     throw "Expected AMD64/64bit Python, found $($runtime.machine)/$($runtime.bits)."
 }
 
-& (Join-Path $PSScriptRoot 'Test-Environment.ps1') -Role Server -PythonExe $PythonExe
+& (Join-Path $PSScriptRoot 'Test-Environment.ps1') -Role Server -PythonExe $PythonExe -ComsolRoot $ComsolRoot
 
 & git -C $repoRoot submodule sync --recursive
 if ($LASTEXITCODE -ne 0) { throw 'git submodule sync failed.' }

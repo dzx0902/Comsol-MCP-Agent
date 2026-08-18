@@ -25,6 +25,18 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\scripts\Setup-OnServer.ps1 -PythonExe python -ExpectedPythonVersion 3.13.5
 ```
 
+COMSOL 安装在非标准目录时，可显式传入根目录：
+
+```powershell
+.\scripts\Setup-OnServer.ps1 `
+  -PythonExe python `
+  -ExpectedPythonVersion 3.13.5 `
+  -ComsolRoot 'T:\Comsol\COMSOL64\Multiphysics'
+```
+
+环境检查会依次使用显式路径、`HKLM\SOFTWARE\Comsol` 注册表、当前 PATH 和标准
+安装目录，不要求 COMSOL 必须位于 `C:\Program Files`。
+
 脚本会严格检查 Python 3.13.5、AMD64/64bit，拉取固定版本的 submodule，
 在上游目录内创建 `.venv`，安装依赖并执行导入检查。它不会启动 COMSOL，也不会
 消耗许可证会话。
