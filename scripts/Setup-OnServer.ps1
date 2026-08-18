@@ -8,9 +8,19 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $appRoot = Join-Path $repoRoot 'vendor\COMSOL_Multiphysics_MCP'
 
-$runtime = & $PythonExe -c 'import json,platform,sys; print(json.dumps({"version":".".join(map(str,sys.version_info[:3])),"machine":platform.machine(),"bits":platform.architecture()[0]}))'
-if ($LASTEXITCODE -ne 0) { throw 'Python is unavailable.' }
-$runtime = $runtime | ConvertFrom-Json
+function Get-PythonRuntime {
+    param([string]$Executable)
+
+    # Do not embed quoted Python string literals here. Windows PowerShell 5.1 can
+    # strip those quotes while constructing a native-process command line.
+    $output = & $Executable -c 'import platform,sys;print(sys.version.split()[0],platform.machine(),platform.architecture()[0],sep=chr(124))'
+    if ($LASTEXITCODE -ne 0) { throw "Python is unavailable: $Executable" }
+    $fields = @($output -split '\|')
+    if ($fields.Count -ne 3) { throw "Unexpected Python runtime output: $output" }
+    [pscustomobject]@{ Version = $fields[0]; Machine = $fields[1]; Bits = $fields[2] }
+}
+
+$runtime = Get-PythonRuntime -Executable $PythonExe
 if ($runtime.version -ne $ExpectedPythonVersion) {
     throw "Expected Python $ExpectedPythonVersion, found $($runtime.version)."
 }
@@ -37,9 +47,7 @@ if (-not (Test-Path -LiteralPath $venvPython -PathType Leaf)) {
     if ($LASTEXITCODE -ne 0) { throw 'Virtual environment creation failed.' }
 }
 
-$venvRuntime = & $venvPython -c 'import json,platform,sys; print(json.dumps({"version":".".join(map(str,sys.version_info[:3])),"machine":platform.machine(),"bits":platform.architecture()[0]}))'
-if ($LASTEXITCODE -ne 0) { throw 'The virtual-environment Python is unavailable.' }
-$venvRuntime = $venvRuntime | ConvertFrom-Json
+$venvRuntime = Get-PythonRuntime -Executable $venvPython
 if ($venvRuntime.version -ne $ExpectedPythonVersion -or $venvRuntime.machine -ne 'AMD64' -or $venvRuntime.bits -ne '64bit') {
     throw "Existing virtual environment does not match $ExpectedPythonVersion AMD64/64bit. Move it aside after confirming the path, then rerun setup."
 }
@@ -50,8 +58,9 @@ if ($LASTEXITCODE -ne 0) { throw 'pip upgrade failed.' }
 if ($LASTEXITCODE -ne 0) { throw 'COMSOL MCP dependency installation failed.' }
 & $venvPython -m pip check
 if ($LASTEXITCODE -ne 0) { throw 'pip check found an inconsistent environment.' }
-& $venvPython -c 'import mph, mcp, src.server; print("COMSOL MCP imports OK")'
+& $venvPython -c 'import mph,mcp,src.server'
 if ($LASTEXITCODE -ne 0) { throw 'COMSOL MCP import smoke test failed.' }
+Write-Output 'COMSOL MCP imports OK'
 
 Write-Output "COMSOL MCP source: $appRoot"
 Write-Output "Python: $venvPython"
